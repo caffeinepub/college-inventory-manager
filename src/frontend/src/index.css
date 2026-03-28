@@ -1,0 +1,73 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: "Plus Jakarta Sans";
+  src: url("/assets/fonts/PlusJakartaSans.woff2") format("woff2");
+  font-weight: 300 700;
+  font-display: swap;
+}
+
+@layer base {
+  :root {
+    --radius: 0.5rem;
+    /* White surfaces */
+    --background: 0.968 0.005 247;
+    --foreground: 0.212 0.01 265;
+    --card: 1 0 0;
+    --card-foreground: 0.212 0.01 265;
+    --popover: 1 0 0;
+    --popover-foreground: 0.212 0.01 265;
+    /* Primary blue #2563EB */
+    --primary: 0.547 0.222 264.4;
+    --primary-foreground: 1 0 0;
+    --secondary: 0.972 0.004 247;
+    --secondary-foreground: 0.212 0.01 265;
+    --muted: 0.972 0.004 247;
+    --muted-foreground: 0.556 0.01 265;
+    --accent: 0.93 0.02 247;
+    --accent-foreground: 0.212 0.01 265;
+    --destructive: 0.577 0.245 27.325;
+    --destructive-foreground: 1 0 0;
+    --border: 0.908 0.008 247;
+    --input: 0.908 0.008 247;
+    --ring: 0.547 0.222 264.4;
+    /* Category colors */
+    --electrical: 0.547 0.222 264.4;
+    --electrical-bg: 0.94 0.04 264;
+    --plumbing: 0.598 0.176 145.6;
+    --plumbing-bg: 0.94 0.04 145;
+    --carpentry: 0.637 0.199 51.8;
+    --carpentry-bg: 0.96 0.06 51;
+    --housekeeping: 0.684 0.159 74.5;
+    --housekeeping-bg: 0.96 0.06 74;
+    /* Status */
+    --in-stock: 0.598 0.176 145.6;
+    --in-stock-bg: 0.94 0.04 145;
+    --low-stock: 0.577 0.245 27.325;
+    --low-stock-bg: 0.96 0.05 27;
+    --medium: 0.684 0.159 74.5;
+    --medium-bg: 0.96 0.06 74;
+    --chart-1: 0.547 0.222 264.4;
+    --chart-2: 0.598 0.176 145.6;
+    --chart-3: 0.637 0.199 51.8;
+    --chart-4: 0.684 0.159 74.5;
+    --chart-5: 0.769 0.188 70.08;
+    --sidebar: 0.986 0.004 247;
+    --sidebar-foreground: 0.212 0.01 265;
+    --sidebar-primary: 0.547 0.222 264.4;
+    --sidebar-primary-foreground: 1 0 0;
+    --sidebar-accent: 0.93 0.02 247;
+    --sidebar-accent-foreground: 0.212 0.01 265;
+    --sidebar-border: 0.908 0.008 247;
+    --sidebar-ring: 0.547 0.222 264.4;
+  }
+
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+  }
+}
