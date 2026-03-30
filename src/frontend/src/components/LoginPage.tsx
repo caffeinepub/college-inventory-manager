@@ -49,7 +49,7 @@ export default function LoginPage() {
                     <img
                       src="/assets/uploads/svcelogo-019d3d25-0374-748f-80a2-999b4a30ec21-1.png"
                       alt="SVCE Logo"
-                      className="h-40 w-auto object-contain"
+                      className="h-16 w-auto object-contain"
                     />
                   </div>
                 </div>
