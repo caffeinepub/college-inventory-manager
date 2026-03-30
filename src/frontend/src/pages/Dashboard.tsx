@@ -10,7 +10,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { AlertTriangle, Package, TrendingDown } from "lucide-react";
+import { AlertTriangle, TrendingDown } from "lucide-react";
 import { motion } from "motion/react";
 import { Category } from "../backend.d";
 import {
@@ -26,6 +26,15 @@ const CATEGORY_ORDER = [
   Category.carpentry,
   Category.housekeeping,
 ];
+
+const CATEGORY_IMAGES: Record<string, string> = {
+  [Category.electrical]:
+    "/assets/generated/electrical-category.dim_400x300.png",
+  [Category.plumbing]: "/assets/generated/plumbing-category.dim_400x300.png",
+  [Category.carpentry]: "/assets/generated/carpentry-category.dim_400x300.png",
+  [Category.housekeeping]:
+    "/assets/generated/housekeeping-category.dim_400x300.png",
+};
 
 const SKEL_ITEMS = ["a", "b", "c", "d", "e"];
 
@@ -95,16 +104,16 @@ export default function Dashboard() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: idx * 0.07 }}
             >
-              <Card data-ocid={`dashboard.${cat}.card`} className="shadow-card">
-                <CardHeader className="pb-2">
-                  <div
-                    className={cn(
-                      "w-9 h-9 rounded-lg flex items-center justify-center mb-1",
-                      cfg.bg,
-                    )}
-                  >
-                    <Package className={cn("w-5 h-5", cfg.color)} />
-                  </div>
+              <Card
+                data-ocid={`dashboard.${cat}.card`}
+                className="shadow-card overflow-hidden"
+              >
+                <img
+                  src={CATEGORY_IMAGES[cat]}
+                  alt={cfg.label}
+                  className="w-full h-28 object-cover rounded-t-xl"
+                />
+                <CardHeader className="pb-2 pt-3">
                   <CardTitle className="text-sm font-medium text-muted-foreground">
                     {cfg.label}
                   </CardTitle>

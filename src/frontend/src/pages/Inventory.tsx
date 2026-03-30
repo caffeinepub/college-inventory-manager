@@ -20,6 +20,7 @@ import {
 import { cn } from "@/lib/utils";
 import {
   AlertTriangle,
+  Download,
   PackageCheck,
   Pencil,
   Plus,
@@ -48,6 +49,48 @@ interface Props {
   isAdmin: boolean;
   searchValue: string;
   userDepartment: string;
+}
+
+function csvEscape(v: string | bigint): string {
+  const s = String(v);
+  return `"${s.replace(/"/g, '""')}"`;
+}
+
+function exportToCSV(items: InventoryItem[]) {
+  const headers = [
+    "Name",
+    "Category",
+    "Quantity",
+    "Unit",
+    "Location",
+    "Supplier",
+    "Purchase Date",
+    "Cost (INR)",
+  ];
+  const rows = items.map((item) => [
+    item.name,
+    item.category.charAt(0).toUpperCase() + item.category.slice(1),
+    String(item.quantity),
+    item.unit,
+    item.location || "",
+    item.supplier || "",
+    item.purchaseDate || "",
+    String(item.cost),
+  ]);
+
+  const csv = [headers, ...rows]
+    .map((row) => row.map(csvEscape).join(","))
+    .join("\n");
+
+  // UTF-8 BOM so Excel opens it correctly
+  const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const date = new Date().toISOString().split("T")[0];
+  a.href = url;
+  a.download = `SVCE_Inventory_${date}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 export default function Inventory({
@@ -86,6 +129,15 @@ export default function Inventory({
     } catch {
       toast.error("Failed to delete item");
     }
+  };
+
+  const handleExport = () => {
+    if (items.length === 0) {
+      toast.error("No inventory items to export.");
+      return;
+    }
+    exportToCSV(items);
+    toast.success(`Exported ${items.length} items to CSV (opens in Excel).`);
   };
 
   const StatusBadge = ({
@@ -165,17 +217,29 @@ export default function Inventory({
                 </SelectContent>
               </Select>
               {isAdmin && (
-                <Button
-                  data-ocid="inventory.add.primary_button"
-                  size="sm"
-                  onClick={() => {
-                    setEditItem(null);
-                    setAddEditOpen(true);
-                  }}
-                  className="h-8 gap-1.5"
-                >
-                  <Plus className="w-3.5 h-3.5" /> Add Item
-                </Button>
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleExport}
+                    className="h-8 gap-1.5"
+                    data-ocid="inventory.export.button"
+                    disabled={isLoading || items.length === 0}
+                  >
+                    <Download className="w-3.5 h-3.5" /> Export Excel
+                  </Button>
+                  <Button
+                    data-ocid="inventory.add.primary_button"
+                    size="sm"
+                    onClick={() => {
+                      setEditItem(null);
+                      setAddEditOpen(true);
+                    }}
+                    className="h-8 gap-1.5"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Add Item
+                  </Button>
+                </>
               )}
             </div>
           </div>

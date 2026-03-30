@@ -42,7 +42,7 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [loadingTimedOut, setLoadingTimedOut] = useState(false);
   const queryClient = useQueryClient();
-  const { isFetching: actorFetching } = useActor();
+  const { actor, isFetching: actorFetching } = useActor();
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { data: isAdmin = false, isLoading: loadingAdmin } = useIsAdmin();
@@ -86,6 +86,10 @@ export default function App() {
         <Toaster />
       </>
     );
+  }
+
+  if (!actor) {
+    return <LoadingScreen message="Connecting to SVCE..." />;
   }
 
   if (isConnecting && !loadingTimedOut) {

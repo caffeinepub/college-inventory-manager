@@ -4,7 +4,6 @@ import {
   ClipboardList,
   LayoutDashboard,
   Package,
-  Package2,
   UserCircle,
   Users,
 } from "lucide-react";
@@ -34,19 +33,13 @@ export default function Sidebar({
   return (
     <aside className="w-60 bg-sidebar border-r border-sidebar-border flex flex-col shrink-0">
       {/* Brand */}
-      <div className="px-5 py-5 border-b border-sidebar-border">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-primary rounded-lg flex items-center justify-center">
-            <Package2 className="w-5 h-5 text-primary-foreground" />
-          </div>
-          <div>
-            <p className="font-bold text-sm text-foreground leading-none">
-              SVCE
-            </p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              College Inventory
-            </p>
-          </div>
+      <div className="px-4 py-4 border-b border-sidebar-border">
+        <div className="flex items-center justify-center">
+          <img
+            src="/assets/generated/svce-logo-nobg-transparent.png"
+            alt="SVCE Logo"
+            className="h-28 w-auto object-contain"
+          />
         </div>
       </div>
 

@@ -80,14 +80,45 @@ actor {
     department : Text;
   };
 
-  var nextItemId = 1;
-  var nextIssueId = 1;
-  var nextRequestId = 1;
+  // Stable storage for persistence across upgrades
+  stable var stableNextItemId : Nat = 1;
+  stable var stableNextIssueId : Nat = 1;
+  stable var stableNextRequestId : Nat = 1;
 
-  let inventoryItems = Map.empty<Nat, InventoryItem>();
-  let issueRecords = Map.empty<Nat, IssueRecord>();
-  let itemRequests = Map.empty<Nat, ItemRequest>();
-  let userProfiles = Map.empty<Principal, UserProfile>();
+  stable var stableInventoryItems : [(Nat, InventoryItem)] = [];
+  stable var stableIssueRecords : [(Nat, IssueRecord)] = [];
+  stable var stableItemRequests : [(Nat, ItemRequest)] = [];
+  stable var stableUserProfiles : [(Principal, UserProfile)] = [];
+
+  // Runtime counters (initialized from stable vars)
+  var nextItemId = stableNextItemId;
+  var nextIssueId = stableNextIssueId;
+  var nextRequestId = stableNextRequestId;
+
+  // Runtime Maps (initialized from stable arrays)
+  let inventoryItems = Map.fromIter<Nat, InventoryItem>(stableInventoryItems.vals());
+  let issueRecords = Map.fromIter<Nat, IssueRecord>(stableIssueRecords.vals());
+  let itemRequests = Map.fromIter<Nat, ItemRequest>(stableItemRequests.vals());
+  let userProfiles = Map.fromIter<Principal, UserProfile>(stableUserProfiles.vals());
+
+  // Persist data before upgrade
+  system func preupgrade() {
+    stableNextItemId := nextItemId;
+    stableNextIssueId := nextIssueId;
+    stableNextRequestId := nextRequestId;
+    stableInventoryItems := inventoryItems.entries().toArray();
+    stableIssueRecords := issueRecords.entries().toArray();
+    stableItemRequests := itemRequests.entries().toArray();
+    stableUserProfiles := userProfiles.entries().toArray();
+  };
+
+  // Restore data after upgrade (maps already initialized above)
+  system func postupgrade() {
+    stableInventoryItems := [];
+    stableIssueRecords := [];
+    stableItemRequests := [];
+    stableUserProfiles := [];
+  };
 
   module Category {
     public func compare(a : Category, b : Category) : Order.Order {
@@ -115,7 +146,6 @@ actor {
   // User Profile Management
 
   public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
-    // Allow any non-anonymous caller, even if not yet registered
     if (caller.isAnonymous()) {
       return null;
     };
@@ -133,7 +163,6 @@ actor {
     if (caller.isAnonymous()) {
       Runtime.trap("Unauthorized: Anonymous users cannot save profiles");
     };
-    // Auto-register caller as user if not yet registered
     switch (accessControlState.userRoles.get(caller)) {
       case (null) {
         accessControlState.userRoles.add(caller, #user);

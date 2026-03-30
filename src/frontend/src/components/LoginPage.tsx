@@ -3,8 +3,7 @@ import { BarChart3, Package, Shield, Users } from "lucide-react";
 import { motion } from "motion/react";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 
-const LOGO_PATH =
-  "/assets/uploads/svcelogo-019d33b0-c70a-73ca-8f1a-eedc5bf4348f-1.png";
+const LOGO_PATH = "/assets/generated/svce-logo-nobg-transparent.png";
 
 export default function LoginPage() {
   const { login, isLoggingIn } = useInternetIdentity();
@@ -46,11 +45,11 @@ export default function LoginPage() {
             <div className="bg-primary p-10 flex flex-col justify-between">
               <div>
                 <div className="mb-8">
-                  <div className="inline-flex items-center bg-white rounded-xl px-4 py-2 shadow-md">
+                  <div className="flex items-center justify-center">
                     <img
-                      src={LOGO_PATH}
+                      src="/assets/uploads/svcelogo-019d3d25-0374-748f-80a2-999b4a30ec21-1.png"
                       alt="SVCE Logo"
-                      className="h-14 w-auto object-contain"
+                      className="h-40 w-auto object-contain"
                     />
                   </div>
                 </div>
