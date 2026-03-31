@@ -54,12 +54,42 @@ import {
 } from "../lib/categoryUtils";
 
 const SKEL6 = ["a", "b", "c", "d", "e", "f"];
-const VALID_CATEGORIES = [
-  "electrical",
-  "plumbing",
-  "carpentry",
-  "housekeeping",
-];
+
+// Maps common variations to valid category keys
+function resolveCategory(raw: string): Category | null {
+  const s = raw
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z]/g, "");
+  if (!s) return null;
+  if (s.includes("electrical") || s.includes("electric") || s === "elec")
+    return Category.electrical;
+  if (
+    s.includes("plumbing") ||
+    s.includes("plumb") ||
+    s.includes("pipe") ||
+    s === "plum"
+  )
+    return Category.plumbing;
+  if (
+    s.includes("carpentry") ||
+    s.includes("carpenter") ||
+    s.includes("woodwork") ||
+    s.includes("wood") ||
+    s === "carp"
+  )
+    return Category.carpentry;
+  if (
+    s.includes("housekeeping") ||
+    s.includes("housekeep") ||
+    s.includes("cleaning") ||
+    s.includes("sanit") ||
+    s.includes("housekeeper") ||
+    s === "hk"
+  )
+    return Category.housekeeping;
+  return null;
+}
 
 interface Props {
   isAdmin: boolean;
@@ -153,14 +183,105 @@ export default function Inventory({
       "Unit",
       "Location",
       "Supplier",
-      "Purchase Date",
+      "Purchase Date (YYYY-MM-DD)",
       "Cost (INR)",
     ];
-    const ws = XLSX.utils.aoa_to_sheet([headers]);
+
+    // Example rows to guide users
+    const exampleRows = [
+      [
+        "Wire 4mm",
+        "Electrical",
+        50,
+        "Meters",
+        "Store Room A",
+        "ABC Traders",
+        "2025-01-15",
+        1200,
+      ],
+      [
+        "PVC Pipe 1inch",
+        "Plumbing",
+        30,
+        "Nos",
+        "Store Room B",
+        "XYZ Suppliers",
+        "2025-02-10",
+        800,
+      ],
+      [
+        "Teak Wood Plank",
+        "Carpentry",
+        20,
+        "Pcs",
+        "Workshop",
+        "Wood Depot",
+        "2025-03-01",
+        3500,
+      ],
+      [
+        "Phenyl 1L",
+        "Housekeeping",
+        48,
+        "Bottles",
+        "Pantry Store",
+        "Clean Supplies",
+        "2025-03-20",
+        250,
+      ],
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...exampleRows]);
+
+    // Style header row width
+    ws["!cols"] = [
+      { wch: 25 }, // Name
+      { wch: 16 }, // Category
+      { wch: 10 }, // Quantity
+      { wch: 10 }, // Unit
+      { wch: 20 }, // Location
+      { wch: 20 }, // Supplier
+      { wch: 22 }, // Purchase Date
+      { wch: 12 }, // Cost
+    ];
+
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Inventory Template");
+    XLSX.utils.book_append_sheet(wb, ws, "Inventory");
+
+    // Add a "Valid Categories" guide sheet
+    const guideData = [
+      ["VALID CATEGORY VALUES (use exactly as shown below)"],
+      [""],
+      ["Category Name", "Accepted variations"],
+      ["Electrical", "electrical, Electrical, ELECTRICAL, Electric"],
+      ["Plumbing", "plumbing, Plumbing, PLUMBING, Plumb, Pipe"],
+      ["Carpentry", "carpentry, Carpentry, CARPENTRY, Carpenter, Wood"],
+      [
+        "Housekeeping",
+        "housekeeping, Housekeeping, HOUSEKEEPING, Cleaning, HK",
+      ],
+      [""],
+      [
+        "NOTE:",
+        "Delete the 4 example rows in the Inventory sheet before importing.",
+      ],
+      [
+        "NOTE:",
+        "Purchase Date format: YYYY-MM-DD (e.g. 2025-06-15). Leave blank if unknown.",
+      ],
+      [
+        "NOTE:",
+        "Quantity and Cost must be numbers. Leave Cost blank if unknown (will default to 0).",
+      ],
+    ];
+    const wsGuide = XLSX.utils.aoa_to_sheet(guideData);
+    wsGuide["!cols"] = [{ wch: 18 }, { wch: 55 }];
+    XLSX.utils.book_append_sheet(wb, wsGuide, "Read Me - Categories");
+
     XLSX.writeFile(wb, "SVCE_Inventory_Template.xlsx");
-    toast.success("Template downloaded.");
+    toast.success(
+      "Template downloaded. See the 'Read Me - Categories' sheet for instructions.",
+    );
   };
 
   const handleImport = async (file: File) => {
@@ -169,7 +290,9 @@ export default function Inventory({
       const data = await file.arrayBuffer();
       const wb = XLSX.read(data, { type: "array" });
       const sheet = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
+      const rows = XLSX.utils.sheet_to_json(sheet, {
+        header: 1,
+      }) as unknown[][];
 
       if (rows.length < 2) {
         toast.error("No data rows found in the file.");
@@ -180,19 +303,30 @@ export default function Inventory({
       let added = 0;
       let updated = 0;
       let skipped = 0;
+      const skipReasons: string[] = [];
 
-      for (const row of dataRows) {
+      for (let i = 0; i < dataRows.length; i++) {
+        const row = dataRows[i];
+        const rowNum = i + 2; // Excel row number (1-indexed + header)
+
         const name = String(row[0] ?? "").trim();
-        const categoryRaw = String(row[1] ?? "")
-          .trim()
-          .toLowerCase();
+        const categoryRaw = String(row[1] ?? "").trim();
 
-        if (!name || !VALID_CATEGORIES.includes(categoryRaw)) {
+        if (!name) {
           skipped++;
+          skipReasons.push(`Row ${rowNum}: Missing item name`);
           continue;
         }
 
-        const category = categoryRaw as Category;
+        const category = resolveCategory(categoryRaw);
+        if (!category) {
+          skipped++;
+          skipReasons.push(
+            `Row ${rowNum} "${name}": Unknown category "${categoryRaw}" — use Electrical, Plumbing, Carpentry, or Housekeeping`,
+          );
+          continue;
+        }
+
         const qty = Math.max(0, Number(row[2]) || 0);
         const unit = String(row[3] ?? "").trim();
         const location = String(row[4] ?? "").trim();
@@ -245,14 +379,32 @@ export default function Inventory({
             });
             added++;
           }
-        } catch {
+        } catch (err) {
           skipped++;
+          skipReasons.push(
+            `Row ${rowNum} "${name}": Failed to save — ${
+              err instanceof Error ? err.message : "unknown error"
+            }`,
+          );
         }
       }
 
-      toast.success(
-        `Imported ${added + updated} items (${added} added, ${updated} updated, ${skipped} skipped)`,
-      );
+      if (added + updated > 0) {
+        toast.success(
+          `Import complete: ${added} added, ${updated} updated${
+            skipped > 0 ? `, ${skipped} skipped` : ""
+          }`,
+        );
+      } else {
+        toast.error(
+          `Import failed: all ${skipped} rows were skipped. Check that the Category column uses Electrical, Plumbing, Carpentry, or Housekeeping.`,
+        );
+      }
+
+      // Log skip reasons to console for debugging
+      if (skipReasons.length > 0) {
+        console.warn("Import skip reasons:", skipReasons);
+      }
     } catch {
       toast.error("Failed to read Excel file. Please check the format.");
     } finally {
