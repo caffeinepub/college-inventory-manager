@@ -36,7 +36,7 @@ export default function Sidebar({
       <div className="px-4 py-4 border-b border-sidebar-border">
         <div className="flex items-center justify-center">
           <img
-            src="/assets/generated/svce-logo-nobg-transparent.png"
+            src="/assets/svcelogo-019d42b1-099f-778b-8e2e-7a648a406db9.png"
             alt="SVCE Logo"
             className="h-28 w-auto object-contain"
           />

@@ -21,16 +21,19 @@ import { cn } from "@/lib/utils";
 import {
   AlertTriangle,
   Download,
+  FileDown,
   PackageCheck,
   Pencil,
   Plus,
   Search,
   Send,
   Trash2,
+  Upload,
 } from "lucide-react";
 import { motion } from "motion/react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
+import * as XLSX from "xlsx";
 import type { InventoryItem } from "../backend.d";
 import AddEditItemModal from "../components/modals/AddEditItemModal";
 import IssueItemModal from "../components/modals/IssueItemModal";
@@ -38,59 +41,30 @@ import RequestItemModal from "../components/modals/RequestItemModal";
 import {
   Category,
   useAllInventoryItems,
+  useCreateItem,
   useDeleteItem,
   useLowStockItems,
+  useUpdateItem,
 } from "../hooks/useQueries";
-import { CATEGORY_CONFIG, getStockStatus } from "../lib/categoryUtils";
+import {
+  CATEGORY_CONFIG,
+  dateToNs,
+  getStockStatus,
+  nsToDate,
+} from "../lib/categoryUtils";
 
 const SKEL6 = ["a", "b", "c", "d", "e", "f"];
+const VALID_CATEGORIES = [
+  "electrical",
+  "plumbing",
+  "carpentry",
+  "housekeeping",
+];
 
 interface Props {
   isAdmin: boolean;
   searchValue: string;
   userDepartment: string;
-}
-
-function csvEscape(v: string | bigint): string {
-  const s = String(v);
-  return `"${s.replace(/"/g, '""')}"`;
-}
-
-function exportToCSV(items: InventoryItem[]) {
-  const headers = [
-    "Name",
-    "Category",
-    "Quantity",
-    "Unit",
-    "Location",
-    "Supplier",
-    "Purchase Date",
-    "Cost (INR)",
-  ];
-  const rows = items.map((item) => [
-    item.name,
-    item.category.charAt(0).toUpperCase() + item.category.slice(1),
-    String(item.quantity),
-    item.unit,
-    item.location || "",
-    item.supplier || "",
-    item.purchaseDate || "",
-    String(item.cost),
-  ]);
-
-  const csv = [headers, ...rows]
-    .map((row) => row.map(csvEscape).join(","))
-    .join("\n");
-
-  // UTF-8 BOM so Excel opens it correctly
-  const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  const date = new Date().toISOString().split("T")[0];
-  a.href = url;
-  a.download = `SVCE_Inventory_${date}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
 }
 
 export default function Inventory({
@@ -101,6 +75,10 @@ export default function Inventory({
   const { data: items = [], isLoading } = useAllInventoryItems();
   const { data: lowStock = [] } = useLowStockItems();
   const deleteItem = useDeleteItem();
+  const createItem = useCreateItem();
+  const updateItem = useUpdateItem();
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [addEditOpen, setAddEditOpen] = useState(false);
@@ -109,6 +87,7 @@ export default function Inventory({
   const [issueItem, setIssueItem] = useState<InventoryItem | null>(null);
   const [requestOpen, setRequestOpen] = useState(false);
   const [requestItem, setRequestItem] = useState<InventoryItem | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
 
   const filtered = items.filter((item) => {
     const matchSearch =
@@ -136,8 +115,159 @@ export default function Inventory({
       toast.error("No inventory items to export.");
       return;
     }
-    exportToCSV(items);
-    toast.success(`Exported ${items.length} items to CSV (opens in Excel).`);
+    const headers = [
+      "Name",
+      "Category",
+      "Quantity",
+      "Unit",
+      "Location",
+      "Supplier",
+      "Purchase Date",
+      "Cost (INR)",
+    ];
+    const rows = items.map((item) => [
+      item.name,
+      item.category.charAt(0).toUpperCase() + item.category.slice(1),
+      Number(item.quantity),
+      item.unit,
+      item.location || "",
+      item.supplier || "",
+      item.purchaseDate && item.purchaseDate !== 0n
+        ? nsToDate(item.purchaseDate).toISOString().split("T")[0]
+        : "",
+      item.cost,
+    ]);
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Inventory");
+    const date = new Date().toISOString().split("T")[0];
+    XLSX.writeFile(wb, `SVCE_Inventory_${date}.xlsx`);
+    toast.success(`Exported ${items.length} items to Excel.`);
+  };
+
+  const handleDownloadTemplate = () => {
+    const headers = [
+      "Name",
+      "Category",
+      "Quantity",
+      "Unit",
+      "Location",
+      "Supplier",
+      "Purchase Date",
+      "Cost (INR)",
+    ];
+    const ws = XLSX.utils.aoa_to_sheet([headers]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Inventory Template");
+    XLSX.writeFile(wb, "SVCE_Inventory_Template.xlsx");
+    toast.success("Template downloaded.");
+  };
+
+  const handleImport = async (file: File) => {
+    setIsImporting(true);
+    try {
+      const data = await file.arrayBuffer();
+      const wb = XLSX.read(data, { type: "array" });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
+
+      if (rows.length < 2) {
+        toast.error("No data rows found in the file.");
+        return;
+      }
+
+      const dataRows = rows.slice(1);
+      let added = 0;
+      let updated = 0;
+      let skipped = 0;
+
+      for (const row of dataRows) {
+        const name = String(row[0] ?? "").trim();
+        const categoryRaw = String(row[1] ?? "")
+          .trim()
+          .toLowerCase();
+
+        if (!name || !VALID_CATEGORIES.includes(categoryRaw)) {
+          skipped++;
+          continue;
+        }
+
+        const category = categoryRaw as Category;
+        const qty = Math.max(0, Number(row[2]) || 0);
+        const unit = String(row[3] ?? "").trim();
+        const location = String(row[4] ?? "").trim();
+        const supplier = String(row[5] ?? "").trim();
+        const purchaseDateRaw = String(row[6] ?? "").trim();
+        const cost = Number(row[7]) || 0;
+
+        let purchaseDate = 0n;
+        if (purchaseDateRaw) {
+          const d = new Date(purchaseDateRaw);
+          if (!Number.isNaN(d.getTime())) {
+            purchaseDate = dateToNs(d);
+          }
+        }
+
+        const existing = items.find(
+          (item) => item.name.toLowerCase() === name.toLowerCase(),
+        );
+
+        try {
+          if (existing) {
+            await updateItem.mutateAsync({
+              id: existing.id,
+              item: {
+                ...existing,
+                category,
+                quantity: BigInt(qty),
+                unit: unit || existing.unit,
+                location: location || existing.location,
+                supplier: supplier || existing.supplier,
+                purchaseDate: purchaseDateRaw
+                  ? purchaseDate
+                  : existing.purchaseDate,
+                cost: cost || existing.cost,
+              },
+            });
+            updated++;
+          } else {
+            await createItem.mutateAsync({
+              id: 0n,
+              name,
+              category,
+              quantity: BigInt(qty),
+              unit: unit || "Pcs",
+              location,
+              supplier,
+              purchaseDate,
+              cost,
+              lowStockThreshold: 5n,
+            });
+            added++;
+          }
+        } catch {
+          skipped++;
+        }
+      }
+
+      toast.success(
+        `Imported ${added + updated} items (${added} added, ${updated} updated, ${skipped} skipped)`,
+      );
+    } catch {
+      toast.error("Failed to read Excel file. Please check the format.");
+    } finally {
+      setIsImporting(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleImport(file);
+    }
   };
 
   const StatusBadge = ({
@@ -186,7 +316,7 @@ export default function Inventory({
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <CardTitle className="text-base">Inventory Items</CardTitle>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                 <Input
@@ -218,6 +348,33 @@ export default function Inventory({
               </Select>
               {isAdmin && (
                 <>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".xlsx,.xls"
+                    onChange={handleFileChange}
+                    style={{ display: "none" }}
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleDownloadTemplate}
+                    className="h-8 gap-1.5"
+                    data-ocid="inventory.template.button"
+                  >
+                    <FileDown className="w-3.5 h-3.5" /> Download Template
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="h-8 gap-1.5"
+                    data-ocid="inventory.import.button"
+                    disabled={isImporting}
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    {isImporting ? "Importing..." : "Import Excel"}
+                  </Button>
                   <Button
                     variant="outline"
                     size="sm"
