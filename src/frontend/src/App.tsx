@@ -49,25 +49,31 @@ export default function App() {
   const { data: profile, isLoading: loadingProfile } = useCallerProfile();
   const { data: pendingRequests = [] } = usePendingRequests();
 
-  const isConnecting = actorFetching || loadingAdmin || loadingProfile;
+  // Actor readiness is NOT bypassed by timeout
+  const actorReady = !!actor && !actorFetching;
+  // Backend data loading can be bypassed by timeout
+  const backendLoading = loadingAdmin || loadingProfile;
+  const isConnecting = !actorReady || backendLoading;
 
-  // Start a timeout when connecting begins; clear it when done
   useEffect(() => {
     if (identity && isConnecting && !loadingTimedOut) {
-      timerRef.current = setTimeout(() => {
-        setLoadingTimedOut(true);
-      }, 8000);
-    } else {
+      if (!timerRef.current) {
+        timerRef.current = setTimeout(() => {
+          setLoadingTimedOut(true);
+        }, 10000);
+      }
+    } else if (!isConnecting) {
       if (timerRef.current) {
         clearTimeout(timerRef.current);
         timerRef.current = null;
       }
-      if (!isConnecting) {
-        setLoadingTimedOut(false);
-      }
+      setLoadingTimedOut(false);
     }
     return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
     };
   }, [identity, isConnecting, loadingTimedOut]);
 
@@ -88,15 +94,18 @@ export default function App() {
     );
   }
 
-  if (!actor) {
+  // Always wait for actor — timeout only skips backend data queries
+  if (!actorReady) {
     return <LoadingScreen message="Connecting to SVCE..." />;
   }
 
-  if (isConnecting && !loadingTimedOut) {
+  // Wait for profile query unless timed out
+  if (backendLoading && !loadingTimedOut) {
     return <LoadingScreen message="Connecting to SVCE..." />;
   }
 
-  if (!profile) {
+  // Show ProfileSetup only when actor is ready and profile is confirmed absent
+  if (!profile && !loadingProfile) {
     const handleProfileComplete = () => {
       queryClient.invalidateQueries({ queryKey: ["callerProfile"] });
       queryClient.invalidateQueries({ queryKey: ["isAdmin"] });
